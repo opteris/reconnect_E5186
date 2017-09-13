@@ -28,6 +28,11 @@ def login(baseurl, username, password):
     print r.text
     return s
 
+def logoff(baseurl, session):
+  data = '<request><Logout>1</Logout></request>'
+  r = session.request('POST', baseurl + "/api/user/logout", data=data)
+  print r.text
+
 def headers_update(dictbase, token):
     dictbase['Accept-Language'] = 'en-US'
     dictbase['Content-Type'] = 'application/x-www-form-urlencoded'
@@ -50,9 +55,14 @@ def login_data(username, password, csrf_token):
     return '<?xml version "1.0" encoding="UTF-8"?><request><Username>%s</Username><Password>%s</Password><password_type>4</password_type></request>' % (username, password_hash)
 
 def set_network(baseurl, session, lte_band, net_mode):
-	data = '<request><NetworkMode>%s</NetworkMode><NetworkBand>3FFFFFFF</NetworkBand><LTEBand>%s</LTEBand></request>' % (net_mode, lte_band)
-	session.post(baseurl + "api/net/net-mode", data=data)
-	
+  data = '<request><NetworkMode>%s</NetworkMode><NetworkBand>3FFFFFFF</NetworkBand><LTEBand>%s</LTEBand></request>' % (net_mode, lte_band)
+  r = session.request('POST', baseurl + "api/net/net-mode", data=data)
+  print r.text
+
+def get_network(baseurl, session):
+        r = session.get(baseurl + "api/net/net-mode")
+        return r.text
+
 def check_ping():
     hostname = "8.8.8.8"
     response = os.system("ping -c 1 " + hostname)
@@ -61,25 +71,35 @@ def check_ping():
         pingstatus = "Network Active"
     else:
         pingstatus = "Network Error"
-
     return pingstatus
+
+def reconnect(baseurl, username, password):
+  print "Network Error. Reconnecting..."
+  print "Trying to log in..."
+  s = login(baseurl, username, password)
+  print "Logged !!"
+  r = get_network(baseurl, s)
+  print r
+  if "800C5" in r:
+    print "Setting to 4G only, 2600MHz"
+    net_mode = "03"
+    lte_band = "40"
+  else:
+    print "Setting net to 4G+3G, all EU bands"
+    net_mode = "00"
+    lte_band = "800C5"
+  set_network(baseurl, s, lte_band, net_mode)
+  r = get_network(baseurl, s)
+  print r
+  #logoff(baseurl, s)
+
 baseurl = "http://192.168.8.1/"
 username = "admin"
 password = "password"
 
 if __name__ == "__main__":
-    	ping_status = check_ping()
-	print ping_status
-	if (ping_status != "Network Active"):
-		print "Network Error. Reconnecting..."
-		print "Trying to log in..."
-	    	s = login(baseurl, username, password)
-    		print "Logged !!"
-		net_mode = "00"
-		lte_band = "800C5"
-		set_network(baseurl, s, lte_band, net_mode)
-		time.sleep(15)
-		net_mode = "03" #4g mode only
-		lte_band = "40" #2600mhz
-		set_network(baseurl, s, lte_band, net_mode)
-		#dhcp(baseurl, s)
+  ping_status = check_ping()
+  print ping_status
+  if (ping_status != "Network Active"):
+    reconnect(baseurl, username, password)
+    #dhcp(baseurl, s)
